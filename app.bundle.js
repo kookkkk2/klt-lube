@@ -594,147 +594,85 @@ function calcLubrication(input) {
   };
 }
 
-// ─── Pulsarlube 제품 라인업 (전 모델 5개군) ───
+// ─── Pulsarlube 제품 라인업 ───
 const PULSARLUBE_MODELS = [
-// M — 단일 포인트
+// M — 기계식 (단일 포인트)
 {
   series: "M",
   capacity: 60,
-  ko: "M 60cc",
-  en: "M 60cc",
-  type: "single",
-  envOK: ["normal", "clean"],
-  vibOK: false,
+  ko: "M 60ml",
+  en: "M 60ml",
+  type: "mechanical",
   ex: false
 }, {
   series: "M",
-  capacity: 120,
-  ko: "M 120cc",
-  en: "M 120cc",
-  type: "single",
-  envOK: ["normal", "clean"],
-  vibOK: false,
+  capacity: 125,
+  ko: "M 125ml",
+  en: "M 125ml",
+  type: "mechanical",
   ex: false
 }, {
   series: "M",
-  capacity: 240,
-  ko: "M 240cc",
-  en: "M 240cc",
-  type: "single",
-  envOK: ["normal", "clean", "dusty"],
-  vibOK: false,
-  ex: false
-},
-// MS — 모터 구동
-{
-  series: "MS",
-  capacity: 60,
-  ko: "MS 60cc",
-  en: "MS 60cc",
-  type: "motor",
-  envOK: ["all"],
-  vibOK: true,
+  capacity: 250,
+  ko: "M 250ml",
+  en: "M 250ml",
+  type: "mechanical",
   ex: false
 }, {
-  series: "MS",
-  capacity: 120,
-  ko: "MS 120cc",
-  en: "MS 120cc",
-  type: "motor",
-  envOK: ["all"],
-  vibOK: true,
-  ex: false
-}, {
-  series: "MS",
-  capacity: 250,
-  ko: "MS 250cc",
-  en: "MS 250cc",
-  type: "motor",
-  envOK: ["all"],
-  vibOK: true,
-  ex: false
-},
-// MSP — 다중포인트
-{
-  series: "MSP",
-  capacity: 250,
-  ko: "MSP 250cc",
-  en: "MSP 250cc",
-  type: "multi",
-  envOK: ["all"],
-  vibOK: true,
-  ex: false,
-  ports: 8
-},
-// EX — 폭발지역
-{
-  series: "EX",
-  capacity: 250,
-  ko: "EX 250cc",
-  en: "EX 250cc",
-  type: "ex",
-  envOK: ["all"],
-  vibOK: true,
-  ex: true
-}, {
-  series: "EX",
+  series: "M",
   capacity: 500,
-  ko: "EX 500cc",
-  en: "EX 500cc",
-  type: "ex",
-  envOK: ["all"],
-  vibOK: true,
-  ex: true
+  ko: "M 500ml",
+  en: "M 500ml",
+  type: "mechanical",
+  ex: false
 },
-// VS — 진동환경
+// EXPL — 방폭형
 {
-  series: "VS",
+  series: "EXPL",
   capacity: 60,
-  ko: "VS 60cc",
-  en: "VS 60cc",
-  type: "vib",
-  envOK: ["all"],
-  vibOK: true,
-  ex: false
+  ko: "EXPL 60ml",
+  en: "EXPL 60ml",
+  type: "ex",
+  ex: true
 }, {
-  series: "VS",
+  series: "EXPL",
   capacity: 120,
-  ko: "VS 120cc",
-  en: "VS 120cc",
-  type: "vib",
-  envOK: ["all"],
-  vibOK: true,
-  ex: false
+  ko: "EXPL 120ml",
+  en: "EXPL 120ml",
+  type: "ex",
+  ex: true
+}, {
+  series: "EXPL",
+  capacity: 240,
+  ko: "EXPL 240ml",
+  en: "EXPL 240ml",
+  type: "ex",
+  ex: true
+}, {
+  series: "EXPL",
+  capacity: 480,
+  ko: "EXPL 480ml",
+  en: "EXPL 480ml",
+  type: "ex",
+  ex: true
 }];
 
-// 제품 추천: 1일 급유량 → 1년 운전시 총 사용량 → 적정 용량 매칭
+// 제품 추천: 1일 급유량 → 6개월 사용량 → 적정 용량 매칭
 function recommendPulsarlube(ccPerDay, vibCode, dustCode, requireEx = false) {
   const yearCC = ccPerDay * 365;
   const sixMonthCC = ccPerDay * 180;
   const targetCC = sixMonthCC; // 6개월 1회 교체 권장
 
-  const heavyVib = vibCode === "high";
-  const heavyDust = dustCode === "high" || dustCode === "extreme";
-  let candidates = PULSARLUBE_MODELS.filter(m => {
-    if (requireEx && !m.ex) return false;
-    if (heavyVib && !m.vibOK) return false;
-    return true;
-  });
+  // 방폭(ATEX) 환경이면 EXPL, 아니면 M 라인업
+  let candidates = PULSARLUBE_MODELS.filter(m => requireEx ? m.ex : !m.ex);
+  candidates = [...candidates].sort((a, b) => a.capacity - b.capacity);
 
-  // 진동환경이면 VS 우선
-  if (heavyVib && !requireEx) {
-    candidates = candidates.filter(m => m.series === "VS" || m.series === "MS");
-  }
-
-  // 적정 용량 (target에 가장 근접하면서 ≥ target)
-  candidates.sort((a, b) => a.capacity - b.capacity);
+  // 목표 용량 이상인 가장 작은 모델 (없으면 최대 용량)
   let primary = candidates.find(m => m.capacity >= targetCC) || candidates[candidates.length - 1];
-  if (!primary) primary = PULSARLUBE_MODELS[2];
+  if (!primary) primary = PULSARLUBE_MODELS[0];
 
-  // 대체 옵션 (다른 시리즈)
-  const alts = candidates.filter(m => m.series !== primary.series && m.capacity >= targetCC * 0.8).slice(0, 2);
-
-  // 설정 주기 (개월)
+  // 대체 옵션: 같은 라인업에서 용량이 가까운 2개
+  const alts = candidates.filter(m => m !== primary).sort((a, b) => Math.abs(a.capacity - primary.capacity) - Math.abs(b.capacity - primary.capacity)).slice(0, 2);
   const monthsAtCapacity = primary.capacity / Math.max(ccPerDay, 0.001) / 30;
   return {
     primary,
@@ -3073,7 +3011,7 @@ function PrimaryProductCard({
     className: "text-[11px] font-bold uppercase tracking-wider text-blue-700"
   }, "Pulsarlube ", model.series), /*#__PURE__*/React.createElement("div", {
     className: "font-mono text-3xl font-bold text-slate-900 leading-tight"
-  }, model.capacity, " cc"), /*#__PURE__*/React.createElement("div", {
+  }, model.capacity, " ml"), /*#__PURE__*/React.createElement("div", {
     className: "text-xs text-slate-600 mt-1"
   }, seriesDesc(model.series, lang)), /*#__PURE__*/React.createElement("div", {
     className: "mt-4 grid grid-cols-2 gap-3"
@@ -3113,7 +3051,7 @@ function AltProductCard({
     className: "text-[10px] font-bold uppercase tracking-wider text-slate-500"
   }, model.series), /*#__PURE__*/React.createElement("div", {
     className: "font-mono text-base font-bold text-slate-900"
-  }, model.capacity, " cc"))), /*#__PURE__*/React.createElement("div", {
+  }, model.capacity, " ml"))), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-slate-500 mt-2"
   }, fmt(months, 1), " ", t.months, " ", lang === "ko" ? "운용" : "coverage"));
 }
@@ -3126,10 +3064,7 @@ function PulsarlubeIcon({
   // 원통형 디스펜서 형태
   const colors = {
     M: "#3b82f6",
-    MS: "#1e40af",
-    MSP: "#0ea5e9",
-    EX: "#dc2626",
-    VS: "#9333ea"
+    EXPL: "#dc2626"
   };
   const c = colors[series] || "#3b82f6";
   return /*#__PURE__*/React.createElement("svg", {
@@ -3169,7 +3104,7 @@ function PulsarlubeIcon({
     fontWeight: "600",
     fill: "#64748b",
     fontFamily: "ui-monospace"
-  }, capacity, "cc"), /*#__PURE__*/React.createElement("rect", {
+  }, capacity, "ml"), /*#__PURE__*/React.createElement("rect", {
     x: "20",
     y: "54",
     width: "24",
@@ -3213,24 +3148,12 @@ function PulsarlubeIcon({
 function seriesDesc(series, lang) {
   const d = {
     M: {
-      ko: "단일 포인트 · 가스 압력식",
-      en: "Single-point · gas-driven"
+      ko: "단일 포인트 · 기계식",
+      en: "Single-point · mechanical"
     },
-    MS: {
-      ko: "모터 구동 · 디지털 설정",
-      en: "Motor-driven · digital"
-    },
-    MSP: {
-      ko: "다중 포인트 · 8라인 분배",
-      en: "Multi-point · 8-line manifold"
-    },
-    EX: {
+    EXPL: {
       ko: "방폭형 · ATEX 인증",
       en: "Explosion-proof · ATEX"
-    },
-    VS: {
-      ko: "내진동 · 충격 환경 전용",
-      en: "Vibration-resistant"
     }
   };
   return d[series]?.[lang] || "";
