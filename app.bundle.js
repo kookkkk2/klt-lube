@@ -655,53 +655,71 @@ const PULSARLUBE_MODELS = [
   ex: true
 }];
 
-// 1회 토출량(ml) — 제품 사양 / 급유 셋팅 주기 1~12개월(월 단위)
+// 1회 토출량(ml) / 급유 셋팅 주기 1~12개월(월 단위) / 1개월=30일 기준
 const DOSE_ML = 0.34;
-const DAYS_PER_MONTH = 30.4;
+const DAYS_PER_MONTH = 30;
+const SETTING_MODES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
-// 제품 추천 + 급유 셋팅 계산
-// 장비는 "설정 기간(1~12개월)" 동안 전체 용량을 분할 토출 → 설정주기 = 교체주기
+// 용량별 총 토출 사이클 수 (제품 사양표 기준)
+//  60ml→180, 120/125ml→360, 240/250ml→720, 480/500ml→1440
+function totalCyclesFor(capacity) {
+  if (capacity <= 60) return 180;
+  if (capacity <= 125) return 360;
+  if (capacity <= 250) return 720;
+  return 1440;
+}
+
+// 제품 사양표 로직:
+//   사이클/1일 = 총사이클 ÷ (셋팅개월 × 30)
+//   동작주기(h) = 24 ÷ (사이클/1일)
+// 베어링 요구 급유량을 충족하는(>=) 가장 근접한 설정을 선택.
 function recommendPulsarlube(ccPerDay, vibCode, dustCode, requireEx = false) {
   const feed = Math.max(ccPerDay, 1e-6); // 1일 필요 급유량 (ml/day)
-  const dosesPerDay = feed / DOSE_ML; // 1일 권장 토출 횟수
-  const monthlyNeed = feed * DAYS_PER_MONTH; // 1개월 필요량 (ml)
+  const reqCyclesPerDay = feed / DOSE_ML; // 1일 필요 토출(사이클) 횟수
 
   let pool = PULSARLUBE_MODELS.filter(m => requireEx ? m.ex : !m.ex);
   pool = [...pool].sort((a, b) => a.capacity - b.capacity);
-  const annotate = m => {
-    const idealP = m.capacity / monthlyNeed; // 이상적 설정 개월
-    const settingMonths = Math.min(12, Math.max(1, Math.round(idealP)));
-    const dailyOut = m.capacity / (settingMonths * DAYS_PER_MONTH); // 설정 시 1일 토출량
+  const bestSettingFor = m => {
+    const N = totalCyclesFor(m.capacity);
+    const cand = SETTING_MODES.map(P => ({
+      P,
+      cd: N / (P * DAYS_PER_MONTH)
+    }));
+    // 요구량 충족 중 최소 초과(가장 근접) → 없으면 최대 토출(최단 주기)
+    const ok = cand.filter(c => c.cd >= reqCyclesPerDay).sort((a, b) => a.cd - b.cd)[0] || cand.slice().sort((a, b) => b.cd - a.cd)[0];
     return {
       ...m,
-      settingMonths,
-      idealP,
-      dailyOut,
-      dosesPerDaySet: dailyOut / DOSE_ML
+      totalCycles: N,
+      settingMonths: ok.P,
+      cyclesPerDay: ok.cd,
+      opHours: 24 / ok.cd
     };
   };
-
-  // 설정(1~12개월)으로 요구량을 맞출 수 있는 용량 중 가장 큰 것 → 교체주기 최대화
-  const valid = pool.filter(m => m.capacity >= monthlyNeed && m.capacity <= 12 * monthlyNeed);
+  const annotated = pool.map(bestSettingFor);
+  // 1순위: 요구 충족하며 토출/일이 가장 작은(낭비 최소) → 동률이면 셋팅주기 긴 것 → 소용량
+  const meet = annotated.filter(m => m.cyclesPerDay >= reqCyclesPerDay);
   let primary;
-  if (valid.length) primary = valid[valid.length - 1];else if (monthlyNeed > pool[pool.length - 1].capacity) primary = pool[pool.length - 1]; // 수요 과다
-  else primary = pool[0]; // 수요 과소
-  primary = annotate(primary);
-  const alts = pool.filter(m => m.capacity !== primary.capacity).map(annotate).sort((a, b) => Math.abs(a.capacity - primary.capacity) - Math.abs(b.capacity - primary.capacity)).slice(0, 2);
+  if (meet.length) {
+    meet.sort((a, b) => a.cyclesPerDay - b.cyclesPerDay || b.settingMonths - a.settingMonths || a.capacity - b.capacity);
+    primary = meet[0];
+  } else {
+    annotated.sort((a, b) => b.cyclesPerDay - a.cyclesPerDay);
+    primary = annotated[0];
+  }
+  const alts = annotated.filter(m => m.capacity !== primary.capacity).sort((a, b) => Math.abs(a.capacity - primary.capacity) - Math.abs(b.capacity - primary.capacity)).slice(0, 2);
   return {
     primary,
     alts,
     DOSE_ML,
-    dosesPerDay,
-    // 권장(요구 기준) 1일 토출 횟수
+    totalCycles: primary.totalCycles,
+    reqCyclesPerDay,
+    cyclesPerDay: primary.cyclesPerDay,
+    dosesPerDay: primary.cyclesPerDay,
+    // UI 호환(=사이클/1일)
+    opHours: primary.opHours,
     settingMonths: primary.settingMonths,
-    // 급유 셋팅 주기 (개월)
     replaceMonths: primary.settingMonths,
-    // 교체주기 (개월) = 설정주기
-    actualDailyOut: primary.dailyOut,
-    actualDosesPerDay: primary.dosesPerDaySet,
     monthsAtCapacity: primary.settingMonths,
-    // 타임라인 호환
     yearCC: feed * 365,
     sixMonthCC: feed * 180
   };
@@ -852,6 +870,8 @@ const I18N = {
     dosesUnit: "회/일",
     perDoseLabel: "1회 토출량",
     mlPerDay: "ml/일",
+    opCycle: "동작 주기",
+    cyclesUnit: "회/일",
     presetStandard: "표준 설비 (6212 ZZ C3)",
     presetMotor: "모터 (6308 C3)",
     presetGearbox: "감속기 (NU212)",
@@ -956,6 +976,8 @@ const I18N = {
     dosesUnit: "/day",
     perDoseLabel: "Per discharge",
     mlPerDay: "ml/day",
+    opCycle: "Discharge interval",
+    cyclesUnit: "/day",
     presetStandard: "Standard (6212 ZZ C3)",
     presetMotor: "Motor (6308 C3)",
     presetGearbox: "Gearbox (NU212)",
@@ -2809,6 +2831,16 @@ const {
   PULSARLUBE_MODELS: PLM,
   SEALS: SL3
 } = window.KLT;
+function fmtInterval(hours, lang) {
+  if (!isFinite(hours) || hours <= 0) return "-";
+  if (hours < 1) {
+    const m = Math.round(hours * 60);
+    return lang === "ko" ? `${m}분` : `${m} min`;
+  }
+  const h = Math.round(hours * 10) / 10;
+  const hs = Number.isInteger(h) ? h : h.toFixed(1);
+  return lang === "ko" ? `${hs}시간` : `${hs} h`;
+}
 function Step3Report({
   input,
   dims,
@@ -2835,7 +2867,7 @@ function Step3Report({
     label: t.perDay,
     value: fmt(calc.ccPerDay),
     unit: t.mlPerDay,
-    sub: `≈ ${fmt(rec.dosesPerDay, 1)} ${t.dosesUnit} · ${t.perDoseLabel} ${rec.DOSE_ML}ml`
+    sub: `≈ ${fmt(rec.cyclesPerDay, 2)} ${t.dosesUnit} · ${t.perDoseLabel} ${rec.DOSE_ML}ml`
   }), /*#__PURE__*/React.createElement(KPI, {
     tone: "indigo",
     label: t.settingPeriod,
@@ -2932,8 +2964,12 @@ function Step3Report({
     formula: "T = k \xB7 14\xD710\u2076 / (n\xB7\u221Ad)"
   }), /*#__PURE__*/React.createElement(DetailRow, {
     label: t.dosesPerDayLabel,
-    value: `${fmt(rec.dosesPerDay, 1)} ${t.dosesUnit}`,
-    formula: `${t.perDay} ÷ ${rec.DOSE_ML}ml`
+    value: `${fmt(rec.cyclesPerDay, 2)} ${t.dosesUnit}`,
+    formula: `${rec.totalCycles} ÷ (${rec.settingMonths} × 30)`
+  }), /*#__PURE__*/React.createElement(DetailRow, {
+    label: t.opCycle,
+    value: fmtInterval(rec.opHours, lang),
+    formula: `24h ÷ ${fmt(rec.cyclesPerDay, 2)}`
   }), /*#__PURE__*/React.createElement("div", {
     className: "border-t border-slate-100 pt-3"
   }), /*#__PURE__*/React.createElement(DetailRow, {
@@ -3031,7 +3067,7 @@ function PrimaryProductCard({
     className: "font-mono text-3xl font-bold text-slate-900 leading-tight"
   }, model.capacity, " ml"), /*#__PURE__*/React.createElement("div", {
     className: "text-xs text-slate-600 mt-1"
-  }, seriesDesc(model.series, lang)), /*#__PURE__*/React.createElement("div", {
+  }, seriesDesc(model.series, lang), " \xB7 ", t.opCycle, " ", fmtInterval(rec.opHours, lang)), /*#__PURE__*/React.createElement("div", {
     className: "mt-4 grid grid-cols-2 gap-3"
   }, /*#__PURE__*/React.createElement("div", {
     className: "bg-white rounded-lg border border-slate-200 px-3 py-2"
@@ -3045,7 +3081,7 @@ function PrimaryProductCard({
     className: "text-[9px] font-bold uppercase tracking-wider text-slate-500"
   }, t.dosesPerDayLabel), /*#__PURE__*/React.createElement("div", {
     className: "font-mono text-sm font-bold text-slate-900 mt-0.5"
-  }, fmt(rec.dosesPerDay, 1), " ", t.dosesUnit))))));
+  }, fmt(rec.cyclesPerDay, 2), " ", t.dosesUnit))))));
 }
 function AltProductCard({
   model,
@@ -3070,7 +3106,7 @@ function AltProductCard({
     className: "font-mono text-base font-bold text-slate-900"
   }, model.capacity, " ml"))), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-slate-500 mt-2"
-  }, t.settingPeriod, " ", model.settingMonths, t.months, " \xB7 ", fmt(model.dosesPerDaySet, 1), t.dosesUnit));
+  }, t.settingPeriod, " ", model.settingMonths, t.months, " \xB7 ", fmt(model.cyclesPerDay, 2), t.dosesUnit));
 }
 function PulsarlubeIcon({
   series,
