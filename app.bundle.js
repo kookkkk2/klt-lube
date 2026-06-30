@@ -1,7 +1,5 @@
-/* KLT Smart Lubrication Calculator - compiled bundle (offline) */
-/* ===== module: bearing-data ===== */
-(function(){
-"use strict";
+/* bundle */
+(function(){"use strict";
 // ============================================================
 // KLT Smart Lubrication Calculator — Bearing Data & Logic
 // ISO 15 / 355 표준 형번 체계 기반
@@ -750,10 +748,7 @@ window.KLT = {
 };
 
 })();
-
-/* ===== module: i18n ===== */
-(function(){
-"use strict";
+(function(){"use strict";
 // ============================================================
 // KLT 스마트 윤활 계산기 — i18n 사전
 // ============================================================
@@ -970,10 +965,7 @@ const I18N = {
 window.I18N = I18N;
 
 })();
-
-/* ===== module: tweaks-panel ===== */
-(function(){
-"use strict";
+(function(){"use strict";
 // tweaks-panel.jsx
 // Reusable Tweaks shell + form-control helpers.
 //
@@ -1498,10 +1490,7 @@ Object.assign(window, {
 });
 
 })();
-
-/* ===== module: ui-helpers ===== */
-(function(){
-"use strict";
+(function(){"use strict";
 // ============================================================
 // KLT 스마트 윤활 계산기 — 메인 React 앱
 // ============================================================
@@ -1760,10 +1749,7 @@ window.UI = {
 };
 
 })();
-
-/* ===== module: bearing-viz ===== */
-(function(){
-"use strict";
+(function(){"use strict";
 // ============================================================
 // 베어링 단면도 + 회전 애니메이션 SVG 컴포넌트
 // RPM에 따라 실제 속도가 변화. 형식별로 내부 구조 차이.
@@ -2101,10 +2087,7 @@ function BearingViz({
 window.BearingViz = BearingViz;
 
 })();
-
-/* ===== module: steps-1-2 ===== */
-(function(){
-"use strict";
+(function(){"use strict";
 // ============================================================
 // Step 1: 베어링 형번 구성 + Step 2: 운전 조건
 // ============================================================
@@ -2813,10 +2796,7 @@ window.Steps12 = {
 };
 
 })();
-
-/* ===== module: step-3 ===== */
-(function(){
-"use strict";
+(function(){"use strict";
 // ============================================================
 // Step 3: 결과 리포트
 // ============================================================
@@ -3074,7 +3054,6 @@ function AltProductCard({
   lang,
   fmt
 }) {
-  const months = model.capacity / Math.max(calc.ccPerDay, 0.001) / 30;
   return /*#__PURE__*/React.createElement("div", {
     className: "rounded-xl border border-slate-200 bg-white p-3 hover:border-slate-300 transition"
   }, /*#__PURE__*/React.createElement("div", {
@@ -3091,7 +3070,7 @@ function AltProductCard({
     className: "font-mono text-base font-bold text-slate-900"
   }, model.capacity, " ml"))), /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] text-slate-500 mt-2"
-  }, fmt(months, 1), " ", t.months, " ", lang === "ko" ? "운용" : "coverage"));
+  }, t.settingPeriod, " ", model.settingMonths, t.months, " \xB7 ", fmt(model.dosesPerDaySet, 1), t.dosesUnit));
 }
 function PulsarlubeIcon({
   series,
@@ -3346,10 +3325,7 @@ window.Step3 = {
 };
 
 })();
-
-/* ===== module: app ===== */
-(function(){
-"use strict";
+(function(){"use strict";
 // ============================================================
 // KLT 스마트 윤활 계산기 — App entry
 // ============================================================
@@ -3459,4 +3435,3 @@ function App() {
 ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(App, null));
 
 })();
-
