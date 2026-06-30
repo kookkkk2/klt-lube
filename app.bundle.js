@@ -1643,14 +1643,18 @@ function StepBadge({
   n,
   active,
   done,
+  onClick,
   children
 }) {
-  return /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2.5"
+  return /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: onClick,
+    className: "flex items-center gap-2.5 group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 rounded-lg -mx-1 px-1 py-0.5",
+    "aria-current": active ? "step" : undefined
   }, /*#__PURE__*/React.createElement("div", {
-    className: cn("w-7 h-7 rounded-full grid place-items-center text-[11px] font-bold border-2 transition", active ? "border-blue-600 bg-blue-600 text-white" : done ? "border-blue-600 bg-white text-blue-600" : "border-slate-200 bg-white text-slate-400")
+    className: cn("w-7 h-7 rounded-full grid place-items-center text-[11px] font-bold border-2 transition", active ? "border-blue-600 bg-blue-600 text-white" : done ? "border-blue-600 bg-white text-blue-600 group-hover:bg-blue-50" : "border-slate-200 bg-white text-slate-400 group-hover:border-slate-300 group-hover:text-slate-500")
   }, done ? "✓" : n), /*#__PURE__*/React.createElement("span", {
-    className: cn("text-sm font-semibold", active ? "text-slate-900" : "text-slate-400")
+    className: cn("text-sm font-semibold transition", active ? "text-slate-900" : "text-slate-400 group-hover:text-slate-600")
   }, children));
 }
 
@@ -1737,25 +1741,32 @@ function TopBar({
 // ─── 단계 인디케이터 ───
 function StepIndicator({
   step,
-  t
+  t,
+  onGo
 }) {
+  const go = n => {
+    if (onGo) onGo(n);
+  };
   return /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-5"
   }, /*#__PURE__*/React.createElement(StepBadge, {
     n: 1,
     active: step === 1,
-    done: step > 1
+    done: step > 1,
+    onClick: () => go(1)
   }, t.step1), /*#__PURE__*/React.createElement("div", {
     className: cn("h-px w-10", step > 1 ? "bg-blue-600" : "bg-slate-200")
   }), /*#__PURE__*/React.createElement(StepBadge, {
     n: 2,
     active: step === 2,
-    done: step > 2
+    done: step > 2,
+    onClick: () => go(2)
   }, t.step2), /*#__PURE__*/React.createElement("div", {
     className: cn("h-px w-10", step > 2 ? "bg-blue-600" : "bg-slate-200")
   }), /*#__PURE__*/React.createElement(StepBadge, {
     n: 3,
-    active: step === 3
+    active: step === 3,
+    onClick: () => go(3)
   }, t.step3));
 }
 window.UI = {
@@ -3412,7 +3423,8 @@ function App() {
     className: "mb-6"
   }, /*#__PURE__*/React.createElement(StepIndicator, {
     step: step,
-    t: t
+    t: t,
+    onGo: setStep
   })), step === 1 && /*#__PURE__*/React.createElement(Step1Designation, {
     input: input,
     setInput: setInput,
