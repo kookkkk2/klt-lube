@@ -1,5 +1,5 @@
 // KLT 스마트 윤활 계산기 — Service Worker (완전 오프라인)
-const CACHE = "klt-lube-v1";
+const CACHE = "klt-lube-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -8,11 +8,11 @@ const ASSETS = [
   "./react.production.min.js",
   "./react-dom.production.min.js",
   "./manifest.webmanifest",
-  "./favicon-32.png",
-  "./apple-touch-icon.png",
-  "./icon-192.png",
-  "./icon-512.png",
-  "./icon-maskable-512.png"
+  "./icons/favicon-32.png",
+  "./icons/apple-touch-icon.png",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png",
+  "./icons/icon-maskable-512.png"
 ];
 
 self.addEventListener("install", (e) => {

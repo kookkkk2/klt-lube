@@ -882,6 +882,11 @@ const I18N = {
     sealAutoLimited: "조건부",
     sealAutoNo: "부적합",
     quickPresets: "빠른 프리셋",
+    manualEntry: "형번 직접 입력",
+    manualPlaceholder: "예: 6212 ZZ C3",
+    manualHint: "형번을 입력하면 자동으로 채워집니다",
+    manualOk: "인식됨",
+    manualErr: "형번을 인식할 수 없습니다",
     presetStandard: "표준 설비 (6212 ZZ C3)",
     presetMotor: "모터 (6308 C3)",
     presetGearbox: "감속기 (NU212)",
@@ -975,6 +980,11 @@ const I18N = {
     sealAutoLimited: "Limited",
     sealAutoNo: "No",
     quickPresets: "Quick presets",
+    manualEntry: "Type designation",
+    manualPlaceholder: "e.g. 6212 ZZ C3",
+    manualHint: "Type a designation to auto-fill",
+    manualOk: "Recognized",
+    manualErr: "Designation not recognized",
     presetStandard: "Standard (6212 ZZ C3)",
     presetMotor: "Motor (6308 C3)",
     presetGearbox: "Gearbox (NU212)",
@@ -2187,17 +2197,102 @@ const PRESETS = [{
   }
 }, {
   id: "tool",
-  ko: "공작기계 (7208 P5)",
-  en: "Machine tool (7208 P5)",
+  ko: "공작기계 (7208)",
+  en: "Machine tool (7208)",
   patch: {
     type: "7",
     series: "2",
     bore: "08",
     seal: "",
-    clearance: "",
-    precision: "P5"
+    clearance: ""
   }
 }];
+
+// ─── 형번 문자열 파서 (수기 입력 → input 패치) ───
+function parseDesignation(str) {
+  if (!str) return null;
+  const s = str.toUpperCase().replace(/\s+/g, " ").trim();
+  if (!s) return null;
+  const tokens = s.split(" ");
+  const core = tokens[0];
+  const sorted = [...BT.map(b => b.code)].sort((a, b) => b.length - a.length);
+  let type = null,
+    rest = core;
+  for (const tc of sorted) {
+    if (core.startsWith(tc)) {
+      type = tc;
+      rest = core.slice(tc.length);
+      break;
+    }
+  }
+  if (!type) return null;
+  const digits = rest.replace(/[^0-9]/g, "");
+  if (digits.length < 3) return null;
+  const series = digits[0];
+  const bore = digits.slice(1, 3);
+  if (!DS.find(d => d.code === series)) return null;
+  if (!BN.find(b => b.code === bore)) return null;
+  const patch = {
+    type,
+    series,
+    bore,
+    seal: "",
+    clearance: ""
+  };
+  for (let i = 1; i < tokens.length; i++) {
+    const tk = tokens[i];
+    if (tk && CL.find(c => c.code === tk)) patch.clearance = tk;else if (tk && SL.find(sl => sl.code === tk)) patch.seal = tk;
+  }
+  return patch;
+}
+
+// ─── 수기 입력 박스 ───
+function ManualDesignation({
+  input,
+  setInput,
+  designation,
+  t
+}) {
+  const [raw, setRaw] = _useState1("");
+  const [status, setStatus] = _useState1(null);
+  const apply = text => {
+    setRaw(text);
+    if (!text.trim()) {
+      setStatus(null);
+      return;
+    }
+    const patch = parseDesignation(text);
+    if (patch) {
+      setInput({
+        ...input,
+        ...patch
+      });
+      setStatus("ok");
+    } else {
+      setStatus("err");
+    }
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "mb-5"
+  }, /*#__PURE__*/React.createElement(FL1, {
+    hint: /*#__PURE__*/React.createElement("span", {
+      className: "text-slate-400"
+    }, t.manualHint)
+  }, t.manualEntry), /*#__PURE__*/React.createElement("div", {
+    className: cn1("flex items-center rounded-lg border bg-white transition focus-within:ring-2", status === "err" ? "border-rose-300 focus-within:ring-rose-100" : status === "ok" ? "border-emerald-300 focus-within:ring-emerald-100" : "border-slate-200 focus-within:border-blue-500 focus-within:ring-blue-100")
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: raw,
+    onChange: e => apply(e.target.value),
+    placeholder: t.manualPlaceholder,
+    spellCheck: false,
+    className: "w-full bg-transparent px-3 py-2.5 text-sm font-mono font-semibold text-slate-900 outline-none uppercase"
+  }), status === "ok" && /*#__PURE__*/React.createElement("span", {
+    className: "pr-3 text-xs font-semibold text-emerald-600 whitespace-nowrap"
+  }, "\u2713 ", t.manualOk), status === "err" && /*#__PURE__*/React.createElement("span", {
+    className: "pr-3 text-xs font-semibold text-rose-500 whitespace-nowrap"
+  }, t.manualErr)));
+}
 
 // ─── Step 1: 형번 구성 ───
 function Step1Designation({
@@ -2240,37 +2335,27 @@ function Step1Designation({
       ...p.patch
     }),
     className: "px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-600 border border-slate-200 hover:border-blue-300 transition"
-  }, p[lang])))), /*#__PURE__*/React.createElement("div", {
+  }, p[lang])))), /*#__PURE__*/React.createElement(ManualDesignation, {
+    input: input,
+    setInput: setInput,
+    designation: designation,
+    t: t
+  }), /*#__PURE__*/React.createElement("div", {
     className: "rounded-xl bg-gradient-to-br from-slate-50 to-blue-50/40 border border-slate-200 p-4 mb-5"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500 mb-2"
   }, t.designation), /*#__PURE__*/React.createElement("div", {
     className: "flex items-baseline gap-1.5 font-mono text-2xl font-bold text-slate-900 tracking-tight"
-  }, input.prefix && /*#__PURE__*/React.createElement("span", {
-    className: "text-blue-600"
-  }, input.prefix), /*#__PURE__*/React.createElement("span", null, input.type), /*#__PURE__*/React.createElement("span", null, input.series), /*#__PURE__*/React.createElement("span", null, input.bore), input.seal && /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("span", null, input.type), /*#__PURE__*/React.createElement("span", null, input.series), /*#__PURE__*/React.createElement("span", null, input.bore), input.seal && /*#__PURE__*/React.createElement("span", {
     className: "text-emerald-700"
   }, input.seal), input.clearance && /*#__PURE__*/React.createElement("span", {
     className: "text-amber-700"
-  }, input.clearance), input.precision && input.precision !== "P0" && /*#__PURE__*/React.createElement("span", {
-    className: "text-rose-700"
-  }, input.precision)), /*#__PURE__*/React.createElement("div", {
-    className: "mt-2 grid grid-cols-7 gap-1 text-[9px] text-slate-400 font-medium"
-  }, /*#__PURE__*/React.createElement("span", null, "1.\uC7AC\uC9C8"), /*#__PURE__*/React.createElement("span", null, "2.\uD615\uC2DD"), /*#__PURE__*/React.createElement("span", null, "3.\uACC4\uC5F4"), /*#__PURE__*/React.createElement("span", null, "4.\uB0B4\uACBD"), /*#__PURE__*/React.createElement("span", null, "5.\uBC00\uBD09"), /*#__PURE__*/React.createElement("span", null, "6.\uAC04\uADF9"), /*#__PURE__*/React.createElement("span", null, "7.\uC815\uBC00"))), /*#__PURE__*/React.createElement("div", {
+  }, input.clearance)), /*#__PURE__*/React.createElement("div", {
+    className: "mt-2 grid grid-cols-5 gap-1 text-[9px] text-slate-400 font-medium"
+  }, /*#__PURE__*/React.createElement("span", null, "1.\uD615\uC2DD"), /*#__PURE__*/React.createElement("span", null, "2.\uACC4\uC5F4"), /*#__PURE__*/React.createElement("span", null, "3.\uB0B4\uACBD"), /*#__PURE__*/React.createElement("span", null, "4.\uBC00\uBD09"), /*#__PURE__*/React.createElement("span", null, "5.\uAC04\uADF9"))), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-1 sm:grid-cols-2 gap-4"
   }, /*#__PURE__*/React.createElement(Field, {
-    label: `1. ${t.prefix}`
-  }, /*#__PURE__*/React.createElement(S1, {
-    value: input.prefix,
-    onChange: v => setInput({
-      ...input,
-      prefix: v
-    })
-  }, PX.map(p => /*#__PURE__*/React.createElement("option", {
-    key: p.code,
-    value: p.code
-  }, p.code ? `${p.code} — ` : "—  ", p[lang])))), /*#__PURE__*/React.createElement(Field, {
-    label: `2. ${t.type}`,
+    label: `1. ${t.type}`,
     hint: dims.known ? /*#__PURE__*/React.createElement("span", {
       className: "text-emerald-600"
     }, t.knownDim) : /*#__PURE__*/React.createElement("span", {
@@ -2293,7 +2378,7 @@ function Step1Designation({
     key: b.code,
     value: b.code
   }, b.code, " \u2014 ", b[lang]))))), /*#__PURE__*/React.createElement(Field, {
-    label: `3. ${t.series}`
+    label: `2. ${t.series}`
   }, /*#__PURE__*/React.createElement(S1, {
     value: input.series,
     onChange: v => setInput({
@@ -2304,7 +2389,7 @@ function Step1Designation({
     key: s.code,
     value: s.code
   }, s.code, " \u2014 ", s[lang])))), /*#__PURE__*/React.createElement(Field, {
-    label: `4. ${t.bore}`,
+    label: `3. ${t.bore}`,
     hint: `d = ${dims.d}mm`
   }, /*#__PURE__*/React.createElement(S1, {
     value: input.bore,
@@ -2316,7 +2401,7 @@ function Step1Designation({
     key: b.code,
     value: b.code
   }, b.code, " \u2014 d=", b.mm, "mm", b.popular ? " ★" : "")))), /*#__PURE__*/React.createElement(Field, {
-    label: `5. ${t.seal}`
+    label: `4. ${t.seal}`
   }, /*#__PURE__*/React.createElement(S1, {
     value: input.seal,
     onChange: v => setInput({
@@ -2327,7 +2412,7 @@ function Step1Designation({
     key: s.code || "open",
     value: s.code
   }, s.code || "—", " \u2014 ", s[lang])))), /*#__PURE__*/React.createElement(Field, {
-    label: `6. ${t.clearance}`
+    label: `5. ${t.clearance}`
   }, /*#__PURE__*/React.createElement(S1, {
     value: input.clearance,
     onChange: v => setInput({
@@ -2337,18 +2422,7 @@ function Step1Designation({
   }, CL.map(c => /*#__PURE__*/React.createElement("option", {
     key: c.code || "std",
     value: c.code
-  }, c.code || "—", " \u2014 ", c[lang])))), /*#__PURE__*/React.createElement(Field, {
-    label: `7. ${t.precision}`
-  }, /*#__PURE__*/React.createElement(S1, {
-    value: input.precision,
-    onChange: v => setInput({
-      ...input,
-      precision: v
-    })
-  }, PR.map(p => /*#__PURE__*/React.createElement("option", {
-    key: p.code,
-    value: p.code
-  }, p.code, " \u2014 ", p[lang]))))))), /*#__PURE__*/React.createElement("div", {
+  }, c.code || "—", " \u2014 ", c[lang]))))))), /*#__PURE__*/React.createElement("div", {
     className: "col-span-12 lg:col-span-5 space-y-5"
   }, /*#__PURE__*/React.createElement(C1, {
     padded: false,
@@ -2679,7 +2753,6 @@ function RPMSlider({
   value,
   onChange
 }) {
-  // log scale 10 ~ 10000
   const min = 10,
     max = 10000;
   const lg = Math.log10;
