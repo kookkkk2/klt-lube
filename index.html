@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>KLT 스마트 윤활 계산기</title>
+  <meta name="description" content="ISO 표준 형번 기반 베어링 자동급유 설계 계산기 — KLT / Pulsarlube" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#2563eb" />
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="KLT 윤활계산기" />
+  <meta name="mobile-web-app-capable" content="yes" />
+
+  <!-- 오프라인 내장 스타일 (Tailwind 사전 빌드) -->
+  <link rel="stylesheet" href="tailwind.css" />
+  <style>html,body{margin:0;background:#f8fafc}</style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- 오프라인 내장 라이브러리 (CDN 불필요) -->
+  <script src="react.production.min.js"></script>
+  <script src="react-dom.production.min.js"></script>
+  <!-- 사전 컴파일된 앱 (Babel 런타임 불필요) -->
+  <script src="app.bundle.js"></script>
+
+  <!-- 서비스워커 등록: 설치 + 완전 오프라인 캐시 -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("sw.js").catch(function (e) {
+          console.warn("SW 등록 실패(로컬 file:// 에서는 정상):", e);
+        });
+      });
+    }
+  </script>
+</body>
+</html>

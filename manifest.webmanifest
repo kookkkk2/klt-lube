@@ -1,0 +1,17 @@
+{
+  "name": "KLT 스마트 윤활 계산기",
+  "short_name": "KLT 윤활계산기",
+  "description": "ISO 표준 형번 기반 베어링 자동급유 설계 — KLT / Pulsarlube",
+  "lang": "ko",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
