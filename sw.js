@@ -1,5 +1,5 @@
 // KLT 스마트 윤활 계산기 — Service Worker (완전 오프라인)
-const CACHE = "klt-lube-v3";
+const CACHE = "klt-lube-v4";
 const ASSETS = [
   "./",
   "./index.html",

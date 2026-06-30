@@ -657,29 +657,55 @@ const PULSARLUBE_MODELS = [
   ex: true
 }];
 
-// 제품 추천: 1일 급유량 → 6개월 사용량 → 적정 용량 매칭
+// 1회 토출량(ml) — 제품 사양 / 급유 셋팅 주기 1~12개월(월 단위)
+const DOSE_ML = 0.34;
+const DAYS_PER_MONTH = 30.4;
+
+// 제품 추천 + 급유 셋팅 계산
+// 장비는 "설정 기간(1~12개월)" 동안 전체 용량을 분할 토출 → 설정주기 = 교체주기
 function recommendPulsarlube(ccPerDay, vibCode, dustCode, requireEx = false) {
-  const yearCC = ccPerDay * 365;
-  const sixMonthCC = ccPerDay * 180;
-  const targetCC = sixMonthCC; // 6개월 1회 교체 권장
+  const feed = Math.max(ccPerDay, 1e-6); // 1일 필요 급유량 (ml/day)
+  const dosesPerDay = feed / DOSE_ML; // 1일 권장 토출 횟수
+  const monthlyNeed = feed * DAYS_PER_MONTH; // 1개월 필요량 (ml)
 
-  // 방폭(ATEX) 환경이면 EXPL, 아니면 M 라인업
-  let candidates = PULSARLUBE_MODELS.filter(m => requireEx ? m.ex : !m.ex);
-  candidates = [...candidates].sort((a, b) => a.capacity - b.capacity);
+  let pool = PULSARLUBE_MODELS.filter(m => requireEx ? m.ex : !m.ex);
+  pool = [...pool].sort((a, b) => a.capacity - b.capacity);
+  const annotate = m => {
+    const idealP = m.capacity / monthlyNeed; // 이상적 설정 개월
+    const settingMonths = Math.min(12, Math.max(1, Math.round(idealP)));
+    const dailyOut = m.capacity / (settingMonths * DAYS_PER_MONTH); // 설정 시 1일 토출량
+    return {
+      ...m,
+      settingMonths,
+      idealP,
+      dailyOut,
+      dosesPerDaySet: dailyOut / DOSE_ML
+    };
+  };
 
-  // 목표 용량 이상인 가장 작은 모델 (없으면 최대 용량)
-  let primary = candidates.find(m => m.capacity >= targetCC) || candidates[candidates.length - 1];
-  if (!primary) primary = PULSARLUBE_MODELS[0];
-
-  // 대체 옵션: 같은 라인업에서 용량이 가까운 2개
-  const alts = candidates.filter(m => m !== primary).sort((a, b) => Math.abs(a.capacity - primary.capacity) - Math.abs(b.capacity - primary.capacity)).slice(0, 2);
-  const monthsAtCapacity = primary.capacity / Math.max(ccPerDay, 0.001) / 30;
+  // 설정(1~12개월)으로 요구량을 맞출 수 있는 용량 중 가장 큰 것 → 교체주기 최대화
+  const valid = pool.filter(m => m.capacity >= monthlyNeed && m.capacity <= 12 * monthlyNeed);
+  let primary;
+  if (valid.length) primary = valid[valid.length - 1];else if (monthlyNeed > pool[pool.length - 1].capacity) primary = pool[pool.length - 1]; // 수요 과다
+  else primary = pool[0]; // 수요 과소
+  primary = annotate(primary);
+  const alts = pool.filter(m => m.capacity !== primary.capacity).map(annotate).sort((a, b) => Math.abs(a.capacity - primary.capacity) - Math.abs(b.capacity - primary.capacity)).slice(0, 2);
   return {
     primary,
     alts,
-    monthsAtCapacity,
-    yearCC,
-    sixMonthCC
+    DOSE_ML,
+    dosesPerDay,
+    // 권장(요구 기준) 1일 토출 횟수
+    settingMonths: primary.settingMonths,
+    // 급유 셋팅 주기 (개월)
+    replaceMonths: primary.settingMonths,
+    // 교체주기 (개월) = 설정주기
+    actualDailyOut: primary.dailyOut,
+    actualDosesPerDay: primary.dosesPerDaySet,
+    monthsAtCapacity: primary.settingMonths,
+    // 타임라인 호환
+    yearCC: feed * 365,
+    sixMonthCC: feed * 180
   };
 }
 
@@ -825,6 +851,12 @@ const I18N = {
     manualHint: "형번을 입력하면 자동으로 채워집니다",
     manualOk: "인식됨",
     manualErr: "형번을 인식할 수 없습니다",
+    settingPeriod: "급유 셋팅 주기",
+    replaceCycle: "교체주기",
+    dosesPerDayLabel: "1일 토출 횟수",
+    dosesUnit: "회/일",
+    perDoseLabel: "1회 토출량",
+    mlPerDay: "ml/일",
     presetStandard: "표준 설비 (6212 ZZ C3)",
     presetMotor: "모터 (6308 C3)",
     presetGearbox: "감속기 (NU212)",
@@ -923,6 +955,12 @@ const I18N = {
     manualHint: "Type a designation to auto-fill",
     manualOk: "Recognized",
     manualErr: "Designation not recognized",
+    settingPeriod: "Feed setting period",
+    replaceCycle: "Replacement cycle",
+    dosesPerDayLabel: "Discharges per day",
+    dosesUnit: "/day",
+    perDoseLabel: "Per discharge",
+    mlPerDay: "ml/day",
     presetStandard: "Standard (6212 ZZ C3)",
     presetMotor: "Motor (6308 C3)",
     presetGearbox: "Gearbox (NU212)",
@@ -2816,20 +2854,20 @@ function Step3Report({
     tone: "blue",
     label: t.perDay,
     value: fmt(calc.ccPerDay),
-    unit: t.ccPerDay,
-    sub: `= ${fmt(calc.gPerDay)} ${t.g}/${t.days}`
+    unit: t.mlPerDay,
+    sub: `≈ ${fmt(rec.dosesPerDay, 1)} ${t.dosesUnit} · ${t.perDoseLabel} ${rec.DOSE_ML}ml`
   }), /*#__PURE__*/React.createElement(KPI, {
     tone: "indigo",
-    label: t.period,
-    value: fmt(calc.T_months, 1),
+    label: t.settingPeriod,
+    value: rec.settingMonths,
     unit: t.months,
-    sub: `${fmt(calc.realDaysToReplenish, 0)} ${t.days} · ${fmt(calc.T_hours, 0)}${t.hoursUnit}`
+    sub: `${t.replaceCycle} ${rec.replaceMonths}${t.months}`
   }), /*#__PURE__*/React.createElement(KPI, {
     tone: "emerald",
     label: t.productPick,
     value: rec.primary[lang],
     unit: "",
-    sub: `${t.monthsCoverage} ${fmt(rec.monthsAtCapacity, 1)} ${t.months}`,
+    sub: `${t.replaceCycle} ${rec.replaceMonths}${t.months}`,
     isText: true
   }))), /*#__PURE__*/React.createElement("div", {
     className: "col-span-12 lg:col-span-5"
@@ -2913,16 +2951,16 @@ function Step3Report({
     value: `${fmt(calc.T_hours, 0)} ${t.hoursUnit}`,
     formula: "T = k \xB7 14\xD710\u2076 / (n\xB7\u221Ad)"
   }), /*#__PURE__*/React.createElement(DetailRow, {
-    label: t.period,
-    value: `${fmt(calc.realDaysToReplenish, 0)} ${t.days}`,
-    formula: `T_run = T / ${input.hoursPerDay}h × 24`
+    label: t.dosesPerDayLabel,
+    value: `${fmt(rec.dosesPerDay, 1)} ${t.dosesUnit}`,
+    formula: `${t.perDay} ÷ ${rec.DOSE_ML}ml`
   }), /*#__PURE__*/React.createElement("div", {
     className: "border-t border-slate-100 pt-3"
   }), /*#__PURE__*/React.createElement(DetailRow, {
     highlight: true,
     label: t.perDay,
-    value: `${fmt(calc.ccPerDay)} ${t.ccPerDay}`,
-    formula: "cc/day = Gp_cc / T_days \xD7 duty"
+    value: `${fmt(calc.ccPerDay)} ${t.mlPerDay}`,
+    formula: "ml/day = Gp / T_days \xD7 duty"
   }))), /*#__PURE__*/React.createElement(C3, null, /*#__PURE__*/React.createElement("h3", {
     className: "text-base font-bold text-slate-900 mb-4"
   }, t.factors), /*#__PURE__*/React.createElement(FactorBars, {
@@ -3019,15 +3057,15 @@ function PrimaryProductCard({
     className: "bg-white rounded-lg border border-slate-200 px-3 py-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] font-bold uppercase tracking-wider text-slate-500"
-  }, t.settingDose), /*#__PURE__*/React.createElement("div", {
+  }, t.settingPeriod), /*#__PURE__*/React.createElement("div", {
     className: "font-mono text-sm font-bold text-slate-900 mt-0.5"
-  }, fmt(calc.ccPerDay, 2), " cc/day")), /*#__PURE__*/React.createElement("div", {
+  }, rec.settingMonths, " ", t.months)), /*#__PURE__*/React.createElement("div", {
     className: "bg-white rounded-lg border border-slate-200 px-3 py-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "text-[9px] font-bold uppercase tracking-wider text-slate-500"
-  }, t.monthsCoverage), /*#__PURE__*/React.createElement("div", {
+  }, t.dosesPerDayLabel), /*#__PURE__*/React.createElement("div", {
     className: "font-mono text-sm font-bold text-slate-900 mt-0.5"
-  }, fmt(rec.monthsAtCapacity, 1), " ", t.months))))));
+  }, fmt(rec.dosesPerDay, 1), " ", t.dosesUnit))))));
 }
 function AltProductCard({
   model,
