@@ -859,6 +859,11 @@ const I18N = {
     sealAutoLimited: "조건부",
     sealAutoNo: "부적합",
     quickPresets: "빠른 프리셋",
+    manage: "관리",
+    done: "완료",
+    addPreset: "현재 형번 추가",
+    restoreDefaults: "기본값 복원",
+    noPresets: "프리셋 없음 — 관리에서 추가하세요",
     manualEntry: "형번 직접 입력",
     manualPlaceholder: "예: 6212 ZZ C3",
     manualHint: "형번을 입력하면 자동으로 채워집니다",
@@ -965,6 +970,11 @@ const I18N = {
     sealAutoLimited: "Limited",
     sealAutoNo: "No",
     quickPresets: "Quick presets",
+    manage: "Manage",
+    done: "Done",
+    addPreset: "Add current",
+    restoreDefaults: "Reset",
+    noPresets: "No presets — add one in Manage",
     manualEntry: "Type designation",
     manualPlaceholder: "e.g. 6212 ZZ C3",
     manualHint: "Type a designation to auto-fill",
@@ -2153,11 +2163,10 @@ const {
   buildDesignation: bDes
 } = window.KLT;
 
-// ─── 빠른 프리셋 ───
-const PRESETS = [{
+// ─── 빠른 프리셋 (사용자 편집 가능 · localStorage 저장) ───
+const DEFAULT_PRESETS = [{
   id: "std",
-  ko: "표준 (6212 ZZ C3)",
-  en: "Standard (6212 ZZ C3)",
+  name: "표준 (6212 ZZ C3)",
   patch: {
     type: "6",
     series: "2",
@@ -2167,8 +2176,7 @@ const PRESETS = [{
   }
 }, {
   id: "mot",
-  ko: "모터 (6308 C3)",
-  en: "Motor (6308 C3)",
+  name: "모터 (6308 C3)",
   patch: {
     type: "6",
     series: "3",
@@ -2178,8 +2186,7 @@ const PRESETS = [{
   }
 }, {
   id: "gbx",
-  ko: "감속기 (NU212)",
-  en: "Gearbox (NU212)",
+  name: "감속기 (NU212)",
   patch: {
     type: "NU",
     series: "2",
@@ -2189,8 +2196,7 @@ const PRESETS = [{
   }
 }, {
   id: "tool",
-  ko: "공작기계 (7208)",
-  en: "Machine tool (7208)",
+  name: "공작기계 (7208)",
   patch: {
     type: "7",
     series: "2",
@@ -2199,6 +2205,114 @@ const PRESETS = [{
     clearance: ""
   }
 }];
+const PRESETS_KEY = "klt_presets_v1";
+function loadPresets() {
+  try {
+    const raw = window.localStorage.getItem(PRESETS_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (Array.isArray(p)) return p;
+    }
+  } catch (e) {}
+  return DEFAULT_PRESETS.map(p => ({
+    ...p
+  }));
+}
+function savePresets(p) {
+  try {
+    window.localStorage.setItem(PRESETS_KEY, JSON.stringify(p));
+  } catch (e) {}
+}
+
+// 프리셋 막대 + 관리(추가/수정/삭제) 패널
+function PresetBar({
+  presets,
+  setPresets,
+  input,
+  setInput,
+  designation,
+  t,
+  lang
+}) {
+  const [manage, setManage] = _useState1(false);
+  const commit = next => {
+    setPresets(next);
+    savePresets(next);
+  };
+  const apply = p => setInput({
+    ...input,
+    ...p.patch
+  });
+  const rename = (id, name) => commit(presets.map(p => p.id === id ? {
+    ...p,
+    name
+  } : p));
+  const remove = id => commit(presets.filter(p => p.id !== id));
+  const addCurrent = () => {
+    const patch = {
+      type: input.type,
+      series: input.series,
+      bore: input.bore,
+      seal: input.seal,
+      clearance: input.clearance
+    };
+    commit([...presets, {
+      id: "u" + Date.now(),
+      name: designation || "Preset",
+      patch
+    }]);
+  };
+  const resetDefaults = () => commit(DEFAULT_PRESETS.map(p => ({
+    ...p
+  })));
+  const nameOf = p => p.name || p[lang] || p.ko || "";
+  return /*#__PURE__*/React.createElement("div", {
+    className: "mb-5"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-1.5"
+  }, /*#__PURE__*/React.createElement(FL1, null, t.quickPresets), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setManage(m => !m),
+    className: "text-[11px] font-semibold text-blue-600 hover:text-blue-700 transition"
+  }, manage ? t.done : t.manage)), !manage ? /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-wrap gap-1.5"
+  }, presets.map(p => /*#__PURE__*/React.createElement("button", {
+    key: p.id,
+    type: "button",
+    onClick: () => apply(p),
+    className: "px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-600 border border-slate-200 hover:border-blue-300 transition"
+  }, nameOf(p))), presets.length === 0 && /*#__PURE__*/React.createElement("span", {
+    className: "text-[11px] text-slate-400 py-1"
+  }, t.noPresets)) : /*#__PURE__*/React.createElement("div", {
+    className: "rounded-xl border border-slate-200 bg-slate-50/70 p-3 space-y-2"
+  }, presets.map(p => /*#__PURE__*/React.createElement("div", {
+    key: p.id,
+    className: "flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement("input", {
+    value: nameOf(p),
+    onChange: e => rename(p.id, e.target.value),
+    className: "flex-1 min-w-0 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "font-mono text-[10px] text-slate-400 whitespace-nowrap"
+  }, p.patch.type, p.patch.series, p.patch.bore, p.patch.seal ? " " + p.patch.seal : "", p.patch.clearance ? " " + p.patch.clearance : ""), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => remove(p.id),
+    "aria-label": "delete",
+    className: "w-7 h-7 grid place-items-center rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+  }, "\u2715"))), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between gap-2 pt-1"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: addCurrent,
+    className: "px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-white bg-blue-600 hover:bg-blue-700 transition"
+  }, "+ ", t.addPreset, " ", /*#__PURE__*/React.createElement("span", {
+    className: "font-mono opacity-80"
+  }, "(", designation, ")")), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: resetDefaults,
+    className: "text-[11px] text-slate-500 hover:text-slate-700 transition"
+  }, t.restoreDefaults))));
+}
 
 // ─── 형번 문자열 파서 (수기 입력 → input 패치) ───
 function parseDesignation(str) {
@@ -2297,6 +2411,7 @@ function Step1Designation({
   onNext
 }) {
   const Viz = window.BearingViz;
+  const [presets, setPresets] = _useState1(loadPresets);
   const popularTypes = BT.filter(b => b.popular);
   const otherTypes = BT.filter(b => !b.popular);
   const Field = ({
@@ -2316,18 +2431,15 @@ function Step1Designation({
     className: "text-base font-bold text-slate-900"
   }, t.designation), /*#__PURE__*/React.createElement("div", {
     className: "text-[11px] text-slate-500 font-mono"
-  }, "ISO 15 / 355")), /*#__PURE__*/React.createElement("div", {
-    className: "mb-5"
-  }, /*#__PURE__*/React.createElement(FL1, null, t.quickPresets), /*#__PURE__*/React.createElement("div", {
-    className: "flex flex-wrap gap-1.5"
-  }, PRESETS.map(p => /*#__PURE__*/React.createElement("button", {
-    key: p.id,
-    onClick: () => setInput({
-      ...input,
-      ...p.patch
-    }),
-    className: "px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-600 border border-slate-200 hover:border-blue-300 transition"
-  }, p[lang])))), /*#__PURE__*/React.createElement(ManualDesignation, {
+  }, "ISO 15 / 355")), /*#__PURE__*/React.createElement(PresetBar, {
+    presets: presets,
+    setPresets: setPresets,
+    input: input,
+    setInput: setInput,
+    designation: designation,
+    t: t,
+    lang: lang
+  }), /*#__PURE__*/React.createElement(ManualDesignation, {
     input: input,
     setInput: setInput,
     designation: designation,
